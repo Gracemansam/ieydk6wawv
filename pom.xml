@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.github.graceman</groupId>
+    <groupId>io.github.gracemansam</groupId>
     <artifactId>alicemvc-parent</artifactId>
     <version>1.0.0</version>
     <packaging>pom</packaging>
@@ -60,12 +60,12 @@
                 <scope>import</scope>
             </dependency>
             <dependency>
-                <groupId>io.github.graceman</groupId>
+                <groupId>io.github.gracemansam</groupId>
                 <artifactId>alicemvc</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>io.github.graceman</groupId>
+                <groupId>io.github.gracemansam</groupId>
                 <artifactId>alicemvc-spring-boot-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -120,6 +120,7 @@
                     <configuration>
                         <publishingServerId>central</publishingServerId>
                         <autoPublish>false</autoPublish>
+                        <deploymentName>alicemvc-1.0.0</deploymentName>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -147,6 +148,10 @@
             <plugin>
                 <groupId>org.sonatype.central</groupId>
                 <artifactId>central-publishing-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
             </plugin>
         </plugins>
     </build>
