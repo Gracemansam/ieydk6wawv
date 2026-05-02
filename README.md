@@ -1,7 +1,7 @@
 # AliceMVC Framework
 
 *A lightweight, Django ViewSet-inspired CRUD framework for Spring Boot.*
-*Named in loving memory of Grandma Alice.*
+*Named in loving memory of my Grandma Alice.*
 
 ---
 
