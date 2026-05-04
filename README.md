@@ -69,7 +69,7 @@ That's it. Two tiny classes. You get 6 REST endpoints, pagination, filtering, so
 
 ```xml
 <dependency>
-    <groupId>io.github.graceman</groupId>
+    <groupId>io.github.gracemansam</groupId>
     <artifactId>alicemvc-spring-boot-starter</artifactId>
     <version>1.1.0</version>
 </dependency>
