@@ -59,7 +59,7 @@ That's it. Two tiny classes. You get 6 REST endpoints, pagination, filtering, so
 19. [API Response Format](#19-api-response-format)
 20. [Architecture Overview](#20-architecture-overview)
 21. [Configuration Reference](#21-configuration-reference)
-22. [Publishing to Maven Central](#22-publishing-to-maven-central)
+22. [Securing CRUD Endpoints](#22-securing-crud-endpoints)
 
 ---
 
@@ -71,7 +71,7 @@ That's it. Two tiny classes. You get 6 REST endpoints, pagination, filtering, so
 <dependency>
     <groupId>io.github.graceman</groupId>
     <artifactId>alicemvc-spring-boot-starter</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
 </dependency>
 ```
 
@@ -1129,65 +1129,305 @@ alicemvc.exception-handler.enabled=false
 
 ---
 
-## 22. Publishing to Maven Central
+## 22. Securing CRUD Endpoints
 
-### Step 1 — Create a Sonatype OSSRH account
-
-Go to https://central.sonatype.com and sign up.
-
-### Step 2 — Verify your groupId
-
-Since your groupId is `io.github.graceman`, verify ownership of the GitHub account `graceman` at https://central.sonatype.com/publishing.
-
-### Step 3 — Generate a GPG key
-
-```bash
-gpg --gen-key
-gpg --list-keys
-gpg --keyserver keyserver.ubuntu.com --send-keys YOUR_KEY_ID
-```
-
-### Step 4 — Configure Maven settings
-
-Add to `~/.m2/settings.xml`:
-
-```xml
-<settings>
-    <servers>
-        <server>
-            <id>central</id>
-            <username>YOUR_SONATYPE_USERNAME</username>
-            <password>YOUR_SONATYPE_TOKEN</password>
-        </server>
-    </servers>
-</settings>
-```
-
-### Step 5 — Add publishing plugins to parent POM
-
-Add the `maven-gpg-plugin`, `nexus-staging-maven-plugin`, and distribution management sections to the parent POM. See the [Sonatype OSSRH guide](https://central.sonatype.org/publish/publish-maven/) for the full configuration.
-
-### Step 6 — Publish
-
-```bash
-mvn clean deploy -P release
-```
-
-Only the `alicemvc` and `alicemvc-spring-boot-starter` modules should be published. The `clinic-api` is a sample app, not a library.
+AliceMVC gives you two approaches to secure the auto-generated CRUD endpoints. Use whichever fits your app.
 
 ---
 
-## Requirements
+### Approach 1 — Spring Security's @PreAuthorize (Manual Override)
 
-- Java 17+
-- Spring Boot 3.x
-- Spring Data JPA
+Since the CRUD endpoints are inherited methods, you override the specific method and add `@PreAuthorize`:
 
-## License
+```java
+@RestController
+@RequestMapping("/api/v1/patients")
+public class PatientController extends SimpleAliceController<Patient, Long> {
 
-MIT License — free for personal and commercial use.
+    public PatientController(PatientService service) { super(service); }
+
+    @Override
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> create(@Valid @RequestBody Patient createRequest,
+                                     HttpServletRequest request) {
+        return super.create(createRequest, request);
+    }
+
+    @Override
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> delete(@PathVariable("id") Long id,
+                                     HttpServletRequest request) {
+        return super.delete(id, request);
+    }
+
+    // getAll, getById, update, partialUpdate remain open — no override needed
+}
+```
+
+This works but requires overriding every method you want to secure. If you have 10 entities with the same permission pattern, that's a lot of repeated code.
 
 ---
 
-*Built with love. In memory of Grandma Alice.*
-# ieydk6wawv
+### Approach 2 — @AlicePermission (Recommended)
+
+One annotation on your controller. No overrides. No boilerplate.
+
+```java
+@RestController
+@RequestMapping("/api/v1/patients")
+@AlicePermission(
+    list     = {"USER", "ADMIN"},
+    retrieve = {"USER", "ADMIN"},
+    create   = {"ADMIN", "DOCTOR"},
+    update   = {"ADMIN", "DOCTOR"},
+    delete   = {"SUPER_ADMIN"}
+)
+public class PatientController extends SimpleAliceController<Patient, Long> {
+    public PatientController(PatientService service) { super(service); }
+}
+```
+
+That's it. Six endpoints, each with different access rules, zero method overrides.
+
+---
+
+### How @AlicePermission Works
+
+- Each operation accepts an **array of strings** — roles, permissions, scopes, or any authority string
+- By default, the user needs **at least one** of the listed authorities (OR logic)
+- Set `matchAll = true` to require **all** listed authorities (AND logic)
+- Operations with an empty array or not listed are **open to all**
+- If the user lacks permission, the framework returns **403 Forbidden**
+- Works with any Spring Security setup: JWT, sessions, OAuth2, LDAP
+- **AliceMVC does NOT depend on Spring Security** — if Spring Security is not on the classpath, the annotation is silently ignored. No conflicts.
+
+---
+
+### Scenario 1 — Using Roles
+
+The most common setup. Role names are matched flexibly — `"ADMIN"` matches both `ADMIN` and `ROLE_ADMIN` authorities.
+
+```java
+@AlicePermission(
+    list     = {"USER", "ADMIN"},
+    retrieve = {"USER", "ADMIN"},
+    create   = {"ADMIN"},
+    update   = {"ADMIN"},
+    delete   = {"SUPER_ADMIN"}
+)
+```
+
+- `GET /` and `GET /{id}` — any user with `USER` or `ADMIN` role
+- `POST /`, `PUT /{id}` — only `ADMIN`
+- `DELETE /{id}` — only `SUPER_ADMIN`
+- `PATCH /{id}` — open to all (not listed)
+
+---
+
+### Scenario 2 — Using Permission Strings
+
+For apps that use fine-grained permissions like `resource:action`.
+
+```java
+@AlicePermission(
+    list     = {"patient:read"},
+    retrieve = {"patient:read"},
+    create   = {"patient:create"},
+    update   = {"patient:update"},
+    delete   = {"patient:delete"}
+)
+```
+
+Permission strings are matched exactly as-is against the user's granted authorities.
+
+---
+
+### Scenario 3 — Using OAuth2 Scopes
+
+For APIs secured with OAuth2/OpenID Connect.
+
+```java
+@AlicePermission(
+    list     = {"SCOPE_read"},
+    retrieve = {"SCOPE_read"},
+    create   = {"SCOPE_write"},
+    update   = {"SCOPE_write"},
+    delete   = {"SCOPE_admin"}
+)
+```
+
+---
+
+### Scenario 4 — Mixing Roles, Permissions, and Scopes
+
+You can mix any authority types. The user needs at least one match.
+
+```java
+@AlicePermission(
+    list   = {"USER", "patient:read", "SCOPE_read"},
+    create = {"ADMIN", "patient:create"},
+    delete = {"SUPER_ADMIN"}
+)
+```
+
+A user with `USER` role OR `patient:read` permission OR `SCOPE_read` scope can access the list endpoint.
+
+---
+
+### Scenario 5 — Read-Only for Users, Full Access for Admins
+
+Only restrict write operations. Read endpoints stay open.
+
+```java
+@AlicePermission(
+    create       = {"ADMIN"},
+    update       = {"ADMIN"},
+    partialUpdate = {"ADMIN"},
+    delete       = {"ADMIN"}
+)
+// list and retrieve are open to everyone — not listed = no restriction
+```
+
+---
+
+### Scenario 6 — Multiple Roles Per Operation
+
+The user needs **at least one** of the listed roles (OR logic by default).
+
+```java
+@AlicePermission(
+    create = {"ADMIN", "DOCTOR", "NURSE"},
+    update = {"ADMIN", "DOCTOR"},
+    delete = {"ADMIN"}
+)
+```
+
+- A `DOCTOR` can create and update, but cannot delete
+- A `NURSE` can only create
+- An `ADMIN` can do everything
+
+---
+
+### Scenario 7 — Require ALL Authorities (AND Logic)
+
+Set `matchAll = true` to require the user to have **every** listed authority.
+
+```java
+@AlicePermission(
+    create = {"ADMIN", "VERIFIED"},
+    delete = {"ADMIN", "VERIFIED", "SENIOR"},
+    matchAll = true
+)
+```
+
+- To create: user must have BOTH `ADMIN` AND `VERIFIED`
+- To delete: user must have ALL THREE — `ADMIN`, `VERIFIED`, AND `SENIOR`
+
+Note: `matchAll` applies to all operations in the annotation. If you need OR logic for some operations and AND logic for others, use `@PreAuthorize` overrides for the AND cases.
+
+---
+
+### Scenario 8 — Open Specific Operations with Wildcard
+
+Use `"*"` to explicitly open an operation to everyone, including unauthenticated users.
+
+```java
+@AlicePermission(
+    list     = {"*"},           // open to everyone
+    retrieve = {"*"},           // open to everyone
+    create   = {"ADMIN"},       // admin only
+    update   = {"ADMIN"},       // admin only
+    delete   = {"SUPER_ADMIN"}  // super admin only
+)
+```
+
+---
+
+### Scenario 9 — Combining with @DisableOperation
+
+Both annotations work together. `@DisableOperation` is checked first.
+
+```java
+@DisableOperation({Operation.DELETE})
+@AlicePermission(
+    create = {"ADMIN"},
+    update = {"ADMIN"}
+)
+```
+
+- `DELETE` returns **405 Method Not Allowed** (disabled entirely, regardless of role)
+- `CREATE` and `UPDATE` require `ADMIN` role → 403 if unauthorized
+- `LIST`, `RETRIEVE`, `PATCH` are open to all
+
+---
+
+### Scenario 10 — Using @PreAuthorize on Custom Endpoints
+
+`@AlicePermission` only applies to the auto-generated CRUD endpoints. For your custom endpoints, use `@PreAuthorize` as usual.
+
+```java
+@RestController
+@RequestMapping("/api/v1/patients")
+@AlicePermission(create = {"ADMIN"}, delete = {"ADMIN"})
+public class PatientController extends SimpleAliceController<Patient, Long> {
+
+    public PatientController(PatientService service) { super(service); }
+
+    // Custom endpoint — @AlicePermission does not apply here
+    // Use @PreAuthorize instead
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
+    @GetMapping("/by-mrn/{mrn}")
+    public ResponseEntity<?> findByMrn(@PathVariable("mrn") String mrn) {
+        // ...
+    }
+}
+```
+
+---
+
+### Scenario 11 — No @AlicePermission at All
+
+If you don't put `@AlicePermission` on a controller, nothing changes. All endpoints remain open. The annotation is completely opt-in.
+
+```java
+// No @AlicePermission — all six endpoints are open to everyone
+@RestController
+@RequestMapping("/api/v1/departments")
+public class DepartmentController extends SimpleAliceController<Department, Long> {
+    public DepartmentController(DepartmentService service) { super(service); }
+}
+```
+
+---
+
+### Scenario 12 — No Spring Security in the Project
+
+If your project does not have `spring-boot-starter-security` as a dependency, `@AlicePermission` is silently ignored. No errors, no conflicts. All endpoints remain open.
+
+This means AliceMVC never forces you to add Spring Security. The annotation only activates when Spring Security is already present.
+
+---
+
+### Error Response When Access is Denied
+
+```json
+{
+    "success": false,
+    "message": "Access denied: requires one of [ADMIN, DOCTOR] for CREATE operation",
+    "timestamp": "2026-05-04T10:30:00"
+}
+```
+
+Status code: **403 Forbidden**
+
+When authentication is missing entirely:
+
+```json
+{
+    "success": false,
+    "message": "Authentication required for CREATE operation",
+    "timestamp": "2026-05-04T10:30:00"
+}
+```
+
+Status code: **403 Forbidden**

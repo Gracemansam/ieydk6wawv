@@ -6,7 +6,7 @@
 
     <groupId>io.github.gracemansam</groupId>
     <artifactId>alicemvc-parent</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <packaging>pom</packaging>
 
     <name>AliceMVC Framework</name>
@@ -32,7 +32,7 @@
     <developers>
         <developer>
             <id>graceman</id>
-            <name>Rukayat</name>
+            <name>Graceman</name>
         </developer>
     </developers>
 
@@ -120,7 +120,7 @@
                     <configuration>
                         <publishingServerId>central</publishingServerId>
                         <autoPublish>false</autoPublish>
-                        <deploymentName>alicemvc-1.0.0</deploymentName>
+                        <deploymentName>alicemvc-1.1.0</deploymentName>
                     </configuration>
                 </plugin>
                 <plugin>

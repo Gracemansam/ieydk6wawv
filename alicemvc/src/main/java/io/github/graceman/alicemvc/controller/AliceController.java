@@ -4,6 +4,7 @@ import io.github.graceman.alicemvc.annotation.DisableOperation;
 import io.github.graceman.alicemvc.annotation.DisableOperation.Operation;
 import io.github.graceman.alicemvc.dto.ResponseFactory;
 import io.github.graceman.alicemvc.exception.OperationNotAllowedException;
+import io.github.graceman.alicemvc.security.AlicePermissionChecker;
 import io.github.graceman.alicemvc.service.AliceService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -54,7 +55,7 @@ import java.util.*;
  * @param <R>  response DTO type
  * @param <C>  create request DTO type
  * @param <U>  update request DTO type
- * @author Graceman
+ * @author Graceman — In loving memory of Grandma Alice
  * @since 1.0.0
  */
 public abstract class AliceController<T, ID extends Serializable, R, C, U> {
@@ -346,6 +347,8 @@ public abstract class AliceController<T, ID extends Serializable, R, C, U> {
                     service.getEntityName()
             );
         }
+        // Check @AlicePermission — if present, validates roles via Spring Security
+        AlicePermissionChecker.checkPermission(getClass(), operation);
     }
 
     private Set<Operation> resolveDisabledOperations() {

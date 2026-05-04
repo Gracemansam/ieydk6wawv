@@ -42,7 +42,7 @@ import java.util.List;
  * <p><b>Option 3 — Write your own from scratch:</b> disable via property
  * and define your own {@code @RestControllerAdvice}.</p>
  *
-
+ * @author Graceman — In loving memory of Grandma Alice
  * @since 1.0.0
  */
 @RestControllerAdvice
@@ -74,6 +74,11 @@ public class AliceExceptionHandler {
     @ExceptionHandler(OperationNotAllowedException.class)
     public ResponseEntity<?> handleNotAllowed(OperationNotAllowedException ex) {
         return responseFactory.error(ex.getMessage(), null, HttpStatus.METHOD_NOT_ALLOWED.value());
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<?> handleAccessDenied(AccessDeniedException ex) {
+        return responseFactory.error(ex.getMessage(), null, HttpStatus.FORBIDDEN.value());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
